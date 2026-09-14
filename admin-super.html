@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Admin - Reserva Clases Padel</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f2f4f7; margin: 0; padding: 20px; }
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  h1 { font-size: 20px; color: #1a73e8; margin: 0; }
+  .btnSalir { background: #eee; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px; max-width: 500px; }
+  input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+  button.principal { background: #1a73e8; color: #fff; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .club-item { padding: 10px; border-bottom: 1px solid #eee; }
+  .club-item:last-child { border-bottom: none; }
+  .club-nombre { font-weight: bold; }
+  .club-id { font-size: 12px; color: #888; }
+  #mensaje { font-size: 13px; margin-top: 8px; min-height: 16px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Panel Super Admin</h1>
+  <button class="btnSalir" onclick="cerrarSesion()">Cerrar sesión</button>
+</div>
+
+<div class="card">
+  <h3>Crear nuevo club</h3>
+  <input type="text" id="nombreClub" placeholder="Nombre del club">
+  <input type="text" id="direccionClub" placeholder="Dirección">
+  <button class="principal" onclick="crearClub()">Crear club</button>
+  <div id="mensaje"></div>
+</div>
+
+<div class="card">
+  <h3>Clubes existentes</h3>
+  <div id="listaClubes">Cargando...</div>
+</div>
+
+<script>
+var PROJECT_ID = "reserva-clases-padel";
+var idToken = localStorage.getItem("idToken");
+var rol = localStorage.getItem("rol");
+
+if (!idToken || rol !== "superadmin") {
+  window.location.href = "index.html";
+}
+
+function cerrarSesion() {
+  localStorage.clear();
+  window.location.href = "index.html";
+}
+
+function mostrarMensaje(texto) {
+  document.getElementById("mensaje").innerText = texto;
+}
+
+function crearClub() {
+  var nombre = document.getElementById("nombreClub").value;
+  var direccion = document.getElementById("direccionClub").value;
+
+  if (!nombre) {
+    mostrarMensaje("Escribe el nombre del club.");
+    return;
+  }
+
+  var url = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents/clubes";
+
+  var body = {
+    fields: {
+      nombre: { stringValue: nombre },
+      direccion: { stringValue: direccion },
+      adminId: { stringValue: "pendiente" },
+      activo: { booleanValue: true }
+    }
+  };
+
+  fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + idToken
+    },
+    body: JSON.stringify(body)
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    mostrarMensaje("Club creado correctamente.");
+    document.getElementById("nombreClub").value = "";
+    document.getElementById("direccionClub").value = "";
+    cargarClubes();
+  })
+  .catch(function(err) {
+    mostrarMensaje("Error al crear el club.");
+  });
+}
+
+function cargarClubes() {
+  var url = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents/clubes";
+
+  fetch(url, {
+    headers: { "Authorization": "Bearer " + idToken }
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    var contenedor = document.getElementById("listaClubes");
+    contenedor.innerHTML = "";
+
+    if (!data.documents || data.documents.length === 0) {
+      contenedor.innerHTML = "No hay clubes creados aún.";
+      return;
+    }
+
+    for (var i = 0; i < data.documents.length; i++) {
+      var doc = data.documents[i];
+      var nombre = doc.fields.nombre ? doc.fields.nombre.stringValue : "(sin nombre)";
+      var idPartes = doc.name.split("/");
+      var clubId = idPartes[idPartes.length - 1];
+
+      var div = document.createElement("div");
+      div.className = "club-item";
+      div.innerHTML = "<div class='club-nombre'>" + nombre + "</div><div class='club-id'>ID: " + clubId + "</div>";
+      contenedor.appendChild(div);
+    }
+  })
+  .catch(function(err) {
+    document.getElementById("listaClubes").innerText = "Error al cargar los clubes.";
+  });
+}
+
+cargarClubes();
+</script>
+
+</body>
+</html>
