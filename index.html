@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reserva Clases Padel</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f2f4f7; margin: 0; padding: 0; }
+  .contenedor { max-width: 360px; margin: 80px auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  h1 { font-size: 20px; text-align: center; color: #1a73e8; margin-bottom: 20px; }
+  input { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+  button { width: 100%; padding: 12px; background: #1a73e8; color: #fff; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; }
+  button:disabled { background: #999; }
+  #mensaje { color: #d93025; font-size: 13px; text-align: center; margin-top: 10px; min-height: 16px; }
+</style>
+</head>
+<body>
+
+<div class="contenedor">
+  <h1>Reserva Clases Padel</h1>
+  <input type="email" id="inputEmail" placeholder="Correo electrónico">
+  <input type="password" id="inputPassword" placeholder="Contraseña">
+  <button id="btnLogin" onclick="iniciarSesion()">Ingresar</button>
+  <div id="mensaje"></div>
+</div>
+
+<script>
+var FIREBASE_API_KEY = "AIzaSyAaNlXJ21iQ2n__0tmqFa3gELbUt5BR_f0";
+var PROJECT_ID = "reserva-clases-padel";
+
+function mostrarMensaje(texto) {
+  document.getElementById("mensaje").innerText = texto;
+}
+
+function iniciarSesion() {
+  var email = document.getElementById("inputEmail").value;
+  var password = document.getElementById("inputPassword").value;
+  var boton = document.getElementById("btnLogin");
+
+  if (!email || !password) {
+    mostrarMensaje("Completa correo y contraseña.");
+    return;
+  }
+
+  boton.disabled = true;
+  mostrarMensaje("Ingresando...");
+
+  var urlLogin = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + FIREBASE_API_KEY;
+
+  fetch(urlLogin, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email, password: password, returnSecureToken: true })
+  })
+  .then(function(res) { return res.json(); })
+  .then(function(data) {
+    if (data.error) {
+      boton.disabled = false;
+      mostrarMensaje("Correo o contraseña incorrectos.");
+      return;
+    }
+
+    var idToken = data.idToken;
+    var uid = data.localId;
+
+    var urlUsuario = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents/usuariosGlobal/" + uid;
+
+    fetch(urlUsuario, {
+      headers: { "Authorization": "Bearer " + idToken }
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(userData) {
+      if (!userData.fields) {
+        boton.disabled = false;
+        mostrarMensaje("Tu usuario no tiene un rol asignado. Contacta al administrador.");
+        return;
+      }
+
+      var rol = userData.fields.rol.stringValue;
+      var clubId = userData.fields.clubId ? userData.fields.clubId.stringValue : "";
+
+      localStorage.setItem("idToken", idToken);
+      localStorage.setItem("uid", uid);
+      localStorage.setItem("rol", rol);
+      localStorage.setItem("clubId", clubId);
+
+      if (rol === "superadmin") {
+        window.location.href = "admin-super.html";
+      } else if (rol === "admin_club") {
+        window.location.href = "admin-club.html";
+      } else if (rol === "profesor") {
+        window.location.href = "profesor.html";
+      } else if (rol === "cliente") {
+        window.location.href = "cliente.html";
+      } else {
+        mostrarMensaje("Rol desconocido.");
+        boton.disabled = false;
+      }
+    });
+  })
+  .catch(function(err) {
+    boton.disabled = false;
+    mostrarMensaje("Error de conexión. Intenta de nuevo.");
+  });
+}
+</script>
+
+</body>
+</html>
